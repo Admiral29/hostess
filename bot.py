@@ -2,11 +2,7 @@ import os
 import logging
 from pyrogram import Client, filters
 
-# ---------- Настройка логирования (пишем и в консоль, и в файл) ----------
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 API_ID = int(os.getenv("API_ID"))
@@ -15,40 +11,48 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 
 app = Client("welcome_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
-# ---------- Обработчик ВСЕХ сообщений (для отладки) ----------
-@app.on_message(filters.all & filters.group)
-async def debug_all_messages(client, message):
-    logger.info(f"Получено сообщение в группе {message.chat.id} от {message.from_user.id}: {message.text if message.text else '[не текст]'}")
-    # Если это служебное сообщение (например, о новом участнике), то у него есть атрибут new_chat_members
-    if message.new_chat_members:
-        logger.info(f"🔔 НОВЫЙ УЧАСТНИК! Количество: {len(message.new_chat_members)}")
-        for user in message.new_chat_members:
-            logger.info(f"Новичок: {user.first_name} (id={user.id}, is_bot={user.is_bot})")
+# Для отладки: сохраняем ID группы, куда будем слать отчёты (замените на ваш chat_id, если надо)
+# Но мы будем слать в ту же группу, где происходит событие.
 
-# ---------- Основной обработчик новых участников ----------
-@app.on_message(filters.new_chat_members & filters.group)
-async def welcome(client, message):
-    logger.info(f"🔥 Обработчик new_chat_members сработал в чате {message.chat.id}")
-    for user in message.new_chat_members:
-        if user.is_bot:
-            logger.info(f"Пропускаем бота {user.first_name}")
-            continue
-        if user.username:
-            mention = f"@{user.username}"
-        else:
-            mention = f"[{user.first_name}](tg://user?id={user.id})"
+# ---------- Обработчик всех сообщений (с отправкой отчёта) ----------
+message_counter = 0
+
+@app.on_message(filters.all & filters.group)
+async def debug_all(client, message):
+    global message_counter
+    message_counter += 1
+    # Чтобы не спамить, отправляем отчёт только для первых 5 сообщений
+    if message_counter <= 5:
         try:
+            await message.reply(f"🔍 Бот видит сообщение #{message_counter}: тип={message.chat.type}")
+        except:
+            pass
+
+    if message.new_chat_members:
+        # Это событие о новом участнике
+        await message.reply(f"🔔 Обнаружен новый участник! Количество: {len(message.new_chat_members)}")
+        for user in message.new_chat_members:
+            if user.is_bot:
+                continue
+            mention = f"@{user.username}" if user.username else f"[{user.first_name}](tg://user?id={user.id})"
             await message.reply(
                 f"👋 Добро пожаловать, {mention}!\nРады видеть тебя в нашей группе! 🎉"
             )
-            logger.info(f"✅ Приветствие отправлено для {user.first_name}")
-        except Exception as e:
-            logger.error(f"❌ Ошибка при отправке приветствия: {e}")
 
-# ---------- Команда /test (чтобы проверить, что бот жив) ----------
+# ---------- Обработчик команды /start (скажет, что бот жив) ----------
+@app.on_message(filters.command("start") & filters.group)
+async def start_cmd(client, message):
+    await message.reply("✅ Бот работает! Я вижу команды в группе.")
+
+# ---------- Обработчик команды /test ----------
 @app.on_message(filters.command("test") & filters.group)
 async def test_cmd(client, message):
-    await message.reply("✅ Бот работает и отвечает на команды!")
+    await message.reply("✅ Бот отвечает на /test! Всё хорошо.")
 
-logger.info("🚀 Бот запущен и ждёт новых участников...")
+# ---------- При запуске отправить сообщение в группу (опционально) ----------
+@app.on_message(filters.command("init") & filters.group)
+async def init_cmd(client, message):
+    await message.reply("✅ Бот запущен и готов работать в этой группе!")
+
+logger.info("🚀 Бот запущен...")
 app.run()
