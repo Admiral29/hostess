@@ -18,6 +18,7 @@ async def welcome_new_member(update: Update, context: ContextTypes.DEFAULT_TYPE)
         safe_name = html.escape(member.full_name)
         welcome_text = (
             f"👋 Здравствуйте, {safe_name}! Добро пожаловать в чат орды!\n"
+            f"Ознакомтесь с <a href="https://t.me/c/4329376403/2764">меню.\n"
             f'Пожалуйста, укажите свой ник <a href="https://t.me/c/4329376403/13">в этой теме</a>.'
         )
         await update.message.reply_text(welcome_text, parse_mode='HTML')
